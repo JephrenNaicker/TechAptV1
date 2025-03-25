@@ -183,6 +183,7 @@ namespace TechAptV1.Client.Services
             catch (Exception ex)
             {
 
+                _logger.LogInformation($"Save failed: {ex.Message}");
                 await _notifications.ShowErrorAsync($"Save failed: {ex.Message}");
             }
         }
