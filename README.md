@@ -75,4 +75,7 @@ The project consists of the following folders:
 ## UI
 * UI refresh showing updated counters
 * Success/error notifications
+* Use of JavaScript for Download files as this was the better and simpler option for the XML
+* Binary file makes use of JavaScrip and C# as to create the binary hexadecimal file. 
+* Hexadecimal file approach, as the binary(1001) would have taken more space , making the file larger to download.
 
