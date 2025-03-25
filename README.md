@@ -1,5 +1,3 @@
-Here's the formatted text for a GitHub README file:
-
 # TechAptV1 - Blazor Application
 This is a Blazor application that demonstrates threading, data persistence, and file download functionality. The application generates random numbers (odd, even, and prime), saves them to a SQLite database, and allows users to download the data in XML or binary format.
 
@@ -57,19 +55,24 @@ The project consists of the following folders:
 * wwwroot/: Static files (e.g., JavaScript, CSS).
 * DatabaseContext/: Contains the EF Core DataContext for database interactions.
 
-## Usage
+# Approach
 
-### Generate Numbers
+## Dependency Injection
+*	Used interface-based design `(IThreadingService, IDataService)`
+*	Makes components testable and replaceable i.e mocking,unit tests `(SOLID)`
 
-1. Navigate to the Threading page.
-2. Click the Start button to begin generating numbers.
+## Threading
+*	Used `SemaphoreSlim` for thread synchronization
+*	Which allows locking around shared resources
+*   Cooperative cancellation using `CancellationTokenSource`
+ 
+## EF Core Implementation
+*	Added primary key for proper entity tracking, for the Number (Data Structure)
+*	Code-First approach
 
-### Save Data
+## Notification System
+*	Toast notifications for user feedback
+## UI
+* UI refresh showing updated counters
+* Success/error notifications
 
-1. Once the number generation is complete, click the Save button to persist the data to the database.
-
-### Download Data
-
-1. Navigate to the Results page.
-2. Click Download XML to download the data in XML format.
-3. Click Download Binary to download the data in binary format.
