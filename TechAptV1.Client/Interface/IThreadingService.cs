@@ -1,5 +1,7 @@
 ﻿// Copyright © 2025 Always Active Technologies PTY Ltd
 
+using TechAptV1.Client.Models;
+
 namespace TechAptV1.Client.Interface
 {
     public interface IThreadingService
@@ -9,10 +11,9 @@ namespace TechAptV1.Client.Interface
         int GetPrimeNumbers();
         int GetTotalNumbers();
         bool IsGenerationComplete();
-        List<int> GetNumbers();
-
+        Task<byte[]> GetBinaryData();
+        List<Number> SortNumbers(List<Number> numbers);
         Task Start();
-        Task Stop();
         Task Save();
     }
 }

@@ -8,6 +8,6 @@ namespace TechAptV1.Client.Interface
     {
         Task Save(List<Number> dataList);
         IEnumerable<Number> Get(int count);
-        IEnumerable<Number> GetAll();
+        Task<List<Number>> GetAll();
     }
 }

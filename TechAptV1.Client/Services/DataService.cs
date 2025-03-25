@@ -1,5 +1,6 @@
 ﻿// Copyright © 2025 Always Active Technologies PTY Ltd
 
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using TechAptV1.Client.DatabaseContext;
 using TechAptV1.Client.Interface;
@@ -43,11 +44,6 @@ public sealed class DataService : IDataService
             await _context.SaveChangesAsync();
             _logger.LogInformation("Numbers saved successfully.");
         }
-        catch (DbUpdateException dbEx)
-        {
-            _logger.LogError(dbEx, "Database error while saving numbers.");
-            throw new Exception("Failed to save data due to a database error.", dbEx);
-        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while saving numbers.");
@@ -70,9 +66,9 @@ public sealed class DataService : IDataService
     /// Fetch All the records from the SQLite Database
     /// </summary>
     /// <returns></returns>
-    public IEnumerable<Number> GetAll()
+    public async Task<List<Number>> GetAll()
     {
         _logger.LogInformation("Fetching all numbers from database.");
-        return _context.Numbers.ToList();
+        return await _context.Numbers.ToListAsync();
     }
 }

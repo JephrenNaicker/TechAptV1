@@ -28,6 +28,7 @@ namespace TechAptV1.Client
                 builder.Services.AddDbContext<DataContext>(options =>options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
                 builder.Services.AddScoped<IDataService, DataService>();
                 builder.Services.AddScoped<IThreadingService, ThreadingService>();
+                builder.Services.AddScoped<NotificationService>();
 
                 var app = builder.Build();
 

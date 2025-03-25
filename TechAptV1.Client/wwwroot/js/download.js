@@ -25,20 +25,23 @@
 function downloadBinary(base64Data, fileName) {
     try {
         // Convert base64 to binary
-        const binaryData = atob(base64Data);
-        const bytes = new Uint8Array(binaryData.length);
-        for (let i = 0; i < binaryData.length; i++) {
-            bytes[i] = binaryData.charCodeAt(i);
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Create a Blob and trigger download
+        // Create and trigger download
         const blob = new Blob([bytes], { type: 'application/octet-stream' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = fileName;
+        document.body.appendChild(link);
         link.click();
-        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
     } catch (error) {
-        console.error('Error in downloadBinary:', error);
+        console.error('Download failed:', error);
     }
 }

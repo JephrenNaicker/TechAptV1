@@ -4,7 +4,9 @@
 @using TechAptV1.Client.Models
 @using TechAptV1.Client.Services
 @inject IDataService DataService
+@inject IThreadingService ThreadingService
 @inject IJSRuntime JSRuntime
+@inject NotificationService Notifications
 
 <h3>Results</h3>
 <p>The table shows the top N numbers generated. The download XML and Binary feature allows you to download the entire data set</p>
@@ -38,15 +40,15 @@
 					</tr>
 				}
 			}
-        </tbody>
-    </table>
+		</tbody>
+	</table>
 </div>
 
 @code {
 
-    [Inject] public required ILogger<Threading> Logger { get; set; }
+	[Inject] public required ILogger<Threading> Logger { get; set; }
 
-    private List<Number> numbers = new ();
+	private List<Number> numbers = new ();
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -68,46 +70,45 @@
 	}
 
 	/// <summary>
-    /// Fetches all the records, serializes them to XML and downloads the file
-    /// </summary>
-    private async Task DownloadXml()
-    {
-        this.Logger.LogInformation("DownloadXml");
-		// Fetch all numbers
-		var allNumbers =  DataService.GetAll();
+	/// Fetches all the records, serializes them to XML and downloads the file
+	/// </summary>
+	private async Task DownloadXml()
+	{
+		try
+		{
+			this.Logger.LogInformation("DownloadXml");
 
-		// Prepare data for JavaScript
-		var data = allNumbers.Select(n => new { value = n.Value, isPrime = n.IsPrime }).ToList();
+			var allNumbers = await DataService.GetAll();
 
-		// Call JavaScript function to serialize and download XML
-		await JSRuntime.InvokeVoidAsync("downloadXml", data, "numbers.xml");
+			var data = allNumbers.Select(n => new { value = n.Value, isPrime = n.IsPrime }).ToList();
+			await JSRuntime.InvokeVoidAsync("downloadXml", data, "numbers.xml");
+			await Notifications.ShowSuccessAsync("Download complete!");
+		}
+		catch (Exception ex)
+		{
+			await Notifications.ShowErrorAsync($"Download failed: {ex.Message}");
+			Logger.LogError(ex, "Xml download  failed");
+		}
 	}
 
     /// <summary>
     /// Fetches all the records, serializes them to Binary and downloads the file
     /// </summary>
-    private async Task DownloadBinary()
-    {
-        this.Logger.LogInformation("DownloadBinary");
+	private async Task DownloadBinary()
+	{
 		try
 		{
-			// Fetch all numbers
-			var allNumbers = DataService.GetAll();
+			var binaryData = await ThreadingService.GetBinaryData();
 
-			// Serialize to JSON and convert to binary
-			var jsonString = JsonSerializer.Serialize(allNumbers);
-			var binaryData = System.Text.Encoding.UTF8.GetBytes(jsonString);
-
-			// Convert binary data to base64
-			var base64Data = Convert.ToBase64String(binaryData);
-
-			// Call JavaScript function to trigger download
-			await JSRuntime.InvokeVoidAsync("downloadBinary", base64Data, "numbers.bin");
+			// Convert to base64 for reliable JS interop
+			var base64 = Convert.ToBase64String(binaryData);
+			await JSRuntime.InvokeVoidAsync("downloadBinary", base64, "numbers.bin");
+			await Notifications.ShowSuccessAsync("Download complete!");
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"Error in DownloadBinary: {ex.Message}");
+			await Notifications.ShowErrorAsync($"Download failed: {ex.Message}");
+			Logger.LogError(ex, "Binary download failed");
 		}
 	}
-
 }

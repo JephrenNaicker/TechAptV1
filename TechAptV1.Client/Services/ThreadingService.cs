@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+﻿// Copyright © 2025 Always Active Technologies PTY Ltd
+
 using TechAptV1.Client.Interface;
 using TechAptV1.Client.Models;
 
@@ -13,20 +9,23 @@ namespace TechAptV1.Client.Services
     {
         private readonly ILogger<ThreadingService> _logger;
         private readonly IDataService _dataService;
-        private readonly List<Number> _sharedNumbers = new List<Number>(); // Shared global variable
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Thread synchronization
-        private bool _shouldStop = false; // Flag to stop threads
+        private readonly List<Number> _sharedNumbers = new List<Number>();
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1); // Thread sync
+        private CancellationTokenSource _cts = new();
+        private readonly NotificationService _notifications;
 
         // Counters for odd, even, prime, and total numbers
         private int _oddNumbers = 0;
         private int _evenNumbers = 0;
         private int _primeNumbers = 0;
         private int _totalNumbers = 0;
-
-        public ThreadingService(ILogger<ThreadingService> logger, IDataService dataService) 
+        private readonly int _maxNumbers = 10000000;
+        private readonly int _threadLimit = 2500000;
+        public ThreadingService(ILogger<ThreadingService> logger, IDataService dataService, NotificationService notifications)
         {
             _logger = logger;
             _dataService = dataService;
+            _notifications = notifications;
         }
 
         // Methods to get the counters
@@ -34,124 +33,112 @@ namespace TechAptV1.Client.Services
         public int GetEvenNumbers() => _evenNumbers;
         public int GetPrimeNumbers() => _primeNumbers;
         public int GetTotalNumbers() => _totalNumbers;
-        public bool IsGenerationComplete() => _totalNumbers >= 40;
+        public bool IsGenerationComplete() => _totalNumbers >= _maxNumbers;
         public async Task Start()
         {
-            _logger.LogInformation("Start");
+            try
+            {
+                _logger.LogInformation("Start");
+                await _notifications.ShowSuccessAsync("Number generation started!");
+                _cts = new CancellationTokenSource();
+                // Thread 1: odd numbers
+                var oddThread = Task.Run(() => GenerateOddNumbers(_cts.Token));
 
-            // Start Thread 1: Generate odd numbers
-            var oddThread = new Thread(GenerateOddNumbers);
-            oddThread.Start();
+                // Thread 2: prime numbers
+                var primeThread = Task.Run(() => GeneratePrimeNumbers(_cts.Token));
 
-            // Start Thread 2: Generate prime numbers
-            var primeThread = new Thread(GeneratePrimeNumbers);
-            primeThread.Start();
-
-            // Monitor the shared list and start Thread 3 when it reaches 10 entries
-            var monitorThread = new Thread(MonitorSharedList);
-            monitorThread.Start();
+                //Thread 3 when it reaches entries
+                var monitorThread = Task.Run(() => MonitorSharedList(_cts.Token));
+            }
+            catch (Exception ex)
+            {
+                await _notifications.ShowErrorAsync($"Failed to start: {ex.Message}");
+            }
         }
 
-        private async void GenerateOddNumbers()
+        private async Task GenerateOddNumbers(CancellationToken token)
         {
             var random = new Random();
-            while (!_shouldStop)
+            while (!token.IsCancellationRequested)
             {
                 int oddNumber = GenerateRandomOddNumber(random);
                 var number = new Number { Value = oddNumber, IsPrime = 0 };
 
-                await _semaphore.WaitAsync(); // Acquire lock
-                _sharedNumbers.Add(number); // Add to shared list
-                _oddNumbers++; // Increment odd number counter
-                _totalNumbers++; // Increment total number counter
-                _semaphore.Release(); // Release lock
+                await _semaphore.WaitAsync();
+                _sharedNumbers.Add(number);
+                _oddNumbers++;
+                _totalNumbers++;
+                _semaphore.Release();
 
                 _logger.LogInformation($"Added odd number: {oddNumber}. Total odd numbers: {_oddNumbers}, Total numbers: {_totalNumbers}");
-
-                await Task.Delay(500); // Simulate some delay
             }
         }
 
-        private async void GeneratePrimeNumbers()
+        private async Task GeneratePrimeNumbers(CancellationToken token)
         {
             var random = new Random();
-            while (!_shouldStop)
+            while (!token.IsCancellationRequested)
             {
                 int primeNumber = GenerateRandomPrimeNumber(random);
                 var number = new Number { Value = -primeNumber, IsPrime = 1 };
 
                 await _semaphore.WaitAsync(); // Acquire lock
                 _sharedNumbers.Add(number); // Add to shared list
-                _primeNumbers++; // Increment prime number counter
-                _totalNumbers++; // Increment total number counter
+                _primeNumbers++;
+                _totalNumbers++;
                 _semaphore.Release(); // Release lock
 
                 _logger.LogInformation($"Added prime number: {-primeNumber}. Total prime numbers: {_primeNumbers}, Total numbers: {_totalNumbers}");
-
-                await Task.Delay(500); // Simulate some delay
             }
         }
 
-        private async void MonitorSharedList()
+        private async Task MonitorSharedList(CancellationToken token)
         {
-            while (!_shouldStop)
+            while (!token.IsCancellationRequested)
             {
                 await _semaphore.WaitAsync(); // Acquire lock
-                if (_sharedNumbers.Count >= 10 && !_shouldStop)
+                if (_sharedNumbers.Count >= _threadLimit)
                 {
                     // Start Thread 3: Generate even numbers
-                    var evenThread = new Thread(GenerateEvenNumbers);
-                    evenThread.Start();
-                    _shouldStop = true; // Stop Thread 1 and Thread 2
+                    var evenThread = Task.Run(() => GenerateEvenNumbers(token));
+
+                    _cts.Cancel();  // Stop Thread 1 and Thread 2
+
                 }
                 _semaphore.Release(); // Release lock
 
-                await Task.Delay(100); // Check the list every 100ms
+       
             }
         }
 
-        private async void GenerateEvenNumbers()
+        private async Task GenerateEvenNumbers(CancellationToken token)
         {
             var random = new Random();
-            while (_sharedNumbers.Count < 40)
+            while (_sharedNumbers.Count < _maxNumbers)
             {
                 int evenNumber = GenerateRandomEvenNumber(random);
                 var number = new Number { Value = evenNumber, IsPrime = 0 };
 
                 await _semaphore.WaitAsync(); // Acquire lock
                 _sharedNumbers.Add(number); // Add to shared list
-                _evenNumbers++; // Increment even number counter
-                _totalNumbers++; // Increment total number counter
+                _evenNumbers++;
+                _totalNumbers++;
                 _semaphore.Release(); // Release lock
 
                 _logger.LogInformation($"Added even number: {evenNumber}. Total even numbers: {_evenNumbers}, Total numbers: {_totalNumbers}");
-
-                await Task.Delay(500); // Simulate some delay
             }
 
-            _logger.LogInformation("Reached 40 entries. Stopping all threads.");
+            _logger.LogInformation($"Reached {_maxNumbers} entries. Stopping all threads.");
         }
 
         private int GenerateRandomOddNumber(Random random)
         {
-            int number;
-            do
-            {
-                number = random.Next(1, 100);
-            } while (number % 2 == 0); // Ensure the number is odd
-
-            return number;
+            return random.Next(0, 500) * 2 + 1;
         }
 
         private int GenerateRandomEvenNumber(Random random)
         {
-            int number;
-            do
-            {
-                number = random.Next(1, 100);
-            } while (number % 2 != 0); // Ensure the number is even
-
-            return number;
+            return random.Next(0, 500) * 2;
         }
 
         private int GenerateRandomPrimeNumber(Random random)
@@ -159,8 +146,8 @@ namespace TechAptV1.Client.Services
             int number;
             do
             {
-                number = random.Next(1, 100);
-            } while (!IsPrime(number)); // Ensure the number is prime
+                number = random.Next(2, 1000);
+            } while (!IsPrime(number));
 
             return number;
         }
@@ -179,13 +166,43 @@ namespace TechAptV1.Client.Services
             return true;
         }
 
-        public async Task Save()
+        public List<Number> SortNumbers(List<Number> numbers)
         {
-            _logger.LogInformation("Save");
-            await _dataService.Save(_sharedNumbers);
+            return numbers.OrderBy(n => n.Value).ToList();
         }
 
-        public List<int> GetNumbers() => throw new NotImplementedException();
-        public Task Stop() => throw new NotImplementedException();
+        public async Task Save()
+        {
+            try
+            {
+                _logger.LogInformation("Save");
+                var sortedNumbers = SortNumbers(_sharedNumbers);
+                await _dataService.Save(sortedNumbers);
+                await _notifications.ShowSuccessAsync("Data saved successfully!");
+            }
+            catch (Exception ex)
+            {
+
+                await _notifications.ShowErrorAsync($"Save failed: {ex.Message}");
+            }
+        }
+
+        public async Task<byte[]> GetBinaryData()
+        {
+            var numbers = await _dataService.GetAll();
+            numbers = numbers.OrderBy(n => n.Value).ToList();
+
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+
+            foreach (var number in numbers)
+            {
+                writer.Write(number.Value);     // 4-byte int
+                writer.Write((byte)number.IsPrime); // 1-byte boolean
+            }
+            return stream.ToArray();
+        }
+
     }
+
 }
